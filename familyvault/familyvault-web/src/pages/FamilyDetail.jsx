@@ -2,19 +2,30 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { familyApi } from '../api/family';
 import { filesApi } from '../api/files';
+import { useAuth } from '../context/AuthContext';
+import FileUpload from '../components/FileUpload';
 
 export default function FamilyDetail() {
   const { familyId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [family, setFamily] = useState(null);
   const [members, setMembers] = useState([]);
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('files');
+  const [userRole, setUserRole] = useState(null);
 
   useEffect(() => {
     loadFamilyData();
   }, [familyId]);
+
+  useEffect(() => {
+    if (members.length > 0 && user) {
+      const currentMember = members.find(m => m.userId === user.id);
+      setUserRole(currentMember?.role);
+    }
+  }, [members, user]);
 
   const loadFamilyData = async () => {
     try {
@@ -33,6 +44,48 @@ export default function FamilyDetail() {
     }
   };
 
+  const handleRoleChange = async (userId, newRole) => {
+    try {
+      await familyApi.updateMemberRole(familyId, userId, newRole);
+      await loadFamilyData();
+    } catch (error) {
+      console.error('Failed to update role:', error);
+      alert('Failed to update member role');
+    }
+  };
+
+  const handleRemoveMember = async (userId) => {
+    if (!window.confirm('Remove this member from the family?')) return;
+    try {
+      await familyApi.removeMember(familyId, userId);
+      await loadFamilyData();
+    } catch (error) {
+      console.error('Failed to remove member:', error);
+      alert('Failed to remove member');
+    }
+  };
+
+  const handleRegenerateCode = async () => {
+    if (!window.confirm('Generate a new invite code? The old code will stop working.')) return;
+    try {
+      const updated = await familyApi.regenerateInviteCode(familyId);
+      setFamily(updated);
+    } catch (error) {
+      console.error('Failed to regenerate code:', error);
+      alert('Failed to regenerate invite code');
+    }
+  };
+
+  const handleToggleInvite = async (enabled) => {
+    try {
+      const updated = await familyApi.toggleInvite(familyId, enabled);
+      setFamily(updated);
+    } catch (error) {
+      console.error('Failed to toggle invites:', error);
+      alert('Failed to toggle invites');
+    }
+  };
+
   const formatBytes = (bytes) => {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -40,6 +93,8 @@ export default function FamilyDetail() {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
+
+  const canManageMembers = userRole === 'ADMIN' || userRole === 'OWNER';
 
   if (loading) {
     return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
@@ -84,7 +139,40 @@ export default function FamilyDetail() {
             </div>
           </div>
 
-          {family.inviteEnabled && (
+          {family.inviteEnabled && canManageMembers && (
+            <div className="mt-6 pt-6 border-t">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-gray-600 text-sm">Invite Code</p>
+                <div className="space-x-2">
+                  <button
+                    onClick={handleRegenerateCode}
+                    className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                  >
+                    Regenerate
+                  </button>
+                  <button
+                    onClick={() => handleToggleInvite(false)}
+                    className="text-red-600 hover:text-red-700 text-sm font-medium"
+                  >
+                    Disable Invites
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <code className="bg-gray-100 px-4 py-2 rounded font-mono text-lg">
+                  {family.inviteCode}
+                </code>
+                <button
+                  onClick={() => navigator.clipboard.writeText(family.inviteCode)}
+                  className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+          )}
+
+          {family.inviteEnabled && !canManageMembers && (
             <div className="mt-6 pt-6 border-t">
               <p className="text-gray-600 text-sm mb-2">Invite Code</p>
               <div className="flex items-center space-x-3">
@@ -98,6 +186,17 @@ export default function FamilyDetail() {
                   Copy
                 </button>
               </div>
+            </div>
+          )}
+
+          {!family.inviteEnabled && canManageMembers && (
+            <div className="mt-6 pt-6 border-t">
+              <button
+                onClick={() => handleToggleInvite(true)}
+                className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+              >
+                Enable Invites
+              </button>
             </div>
           )}
         </div>
@@ -131,6 +230,13 @@ export default function FamilyDetail() {
           <div className="p-6">
             {activeTab === 'files' && (
               <div>
+                <div className="mb-4">
+                  <FileUpload
+                    familyId={familyId}
+                    folderId={null}
+                    onSuccess={loadFamilyData}
+                  />
+                </div>
                 {files.length === 0 ? (
                   <p className="text-gray-500 text-center py-8">No files uploaded yet</p>
                 ) : (
@@ -175,9 +281,30 @@ export default function FamilyDetail() {
                       </p>
                       <p className="text-sm text-gray-500">{member.userEmail}</p>
                     </div>
-                    <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                      {member.role}
-                    </span>
+                    <div className="flex items-center space-x-3">
+                      {canManageMembers && member.role !== 'OWNER' ? (
+                        <select
+                          value={member.role}
+                          onChange={(e) => handleRoleChange(member.userId, e.target.value)}
+                          className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="MEMBER">Member</option>
+                          <option value="ADMIN">Admin</option>
+                        </select>
+                      ) : (
+                        <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                          {member.role}
+                        </span>
+                      )}
+                      {canManageMembers && member.role !== 'OWNER' && (
+                        <button
+                          onClick={() => handleRemoveMember(member.userId)}
+                          className="text-red-600 hover:text-red-700 text-sm font-medium"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

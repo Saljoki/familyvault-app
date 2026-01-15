@@ -42,6 +42,12 @@ public class FolderEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "settings", columnDefinition = "jsonb")
+    private String settings;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {

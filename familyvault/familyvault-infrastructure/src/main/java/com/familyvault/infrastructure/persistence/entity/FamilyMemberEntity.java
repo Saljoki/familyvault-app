@@ -43,10 +43,36 @@ public class FamilyMemberEntity {
     @Column(name = "left_at")
     private Instant leftAt;
 
+    @Column(name = "created_at", nullable = false)
+    private Instant createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    @Column(name = "invited_by", length = 36)
+    private String invitedBy;
+
+    @Column(name = "relationship_data", columnDefinition = "jsonb")
+    private String relationshipData;
+
     @PrePersist
     protected void onCreate() {
         if (joinedAt == null) {
             joinedAt = Instant.now();
         }
+        if (createdAt == null) {
+            createdAt = Instant.now();
+        }
+        if (updatedAt == null) {
+            updatedAt = Instant.now();
+        }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = Instant.now();
     }
 }
