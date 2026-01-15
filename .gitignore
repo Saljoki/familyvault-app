@@ -76,3 +76,6 @@ build/
 # React build
 /frontend/build/
 /frontend/dist/
+
+# Temporary Claude files
+tmpclaude-*

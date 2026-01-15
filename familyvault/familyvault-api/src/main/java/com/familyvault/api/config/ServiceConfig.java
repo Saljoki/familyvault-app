@@ -7,6 +7,7 @@ import com.familyvault.core.application.port.out.security.PasswordEncoderPort;
 import com.familyvault.core.application.port.out.security.TokenPort;
 import com.familyvault.core.application.port.out.storage.FileStoragePort;
 import com.familyvault.core.application.service.auth.AuthService;
+import com.familyvault.core.application.service.family.FamilyService;
 import com.familyvault.core.application.service.file.FileService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,5 +35,13 @@ public class ServiceConfig {
             FileStoragePort fileStorage
     ) {
         return new FileService(fileRepository, familyRepository, fileStorage);
+    }
+
+    @Bean
+    public FamilyService familyService(
+            FamilyRepository familyRepository,
+            UserRepository userRepository
+    ) {
+        return new FamilyService(familyRepository, userRepository);
     }
 }
